@@ -2,7 +2,6 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use std::time::Duration;
-use crate::domain::models::CardToken;
 
 #[derive(Error, Debug)]
 pub enum BankError {
@@ -18,8 +17,11 @@ pub enum BankError {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthorizeRequest {
-    pub card_token: CardToken,
-    pub amount_cents: i64,
+    pub card_number: String,
+    pub cvv: String,
+    pub expiry_month: u8,
+    pub expiry_year: u16,
+    pub amount: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,7 +37,7 @@ pub struct AuthorizeResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CaptureRequest {
     pub authorization_id: String,
-    pub amount_cents: i64,
+    pub amount: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,7 +66,7 @@ pub struct VoidResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RefundRequest {
     pub capture_id: String,
-    pub amount_cents: i64,
+    pub amount: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

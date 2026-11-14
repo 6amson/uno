@@ -65,8 +65,11 @@ impl PaymentService {
 
         // Call bank
         let bank_resp = self.bank.authorize(AuthorizeRequest {
-            card_token: card_token.clone(),
-            amount_cents,
+            card_number: card_token.card_number.clone(),
+            cvv: card_token.cvv.clone(),
+            expiry_month: card_token.expiry_month,
+            expiry_year: card_token.expiry_year,
+            amount: amount_cents,
         }, idempotency_key.as_deref()).await;
 
         let bank_resp = match bank_resp {
@@ -150,7 +153,7 @@ impl PaymentService {
         // Call bank
         let bank_resp = self.bank.capture(CaptureRequest {
             authorization_id: bank_ref.clone(),
-            amount_cents: payment.amount_cents,
+            amount: payment.amount_cents,
         }, idempotency_key.as_deref()).await;
 
         let bank_resp = match bank_resp {
@@ -297,7 +300,7 @@ impl PaymentService {
 
         let bank_resp = self.bank.refund(RefundRequest {
             capture_id: bank_ref.clone(),
-            amount_cents: payment.amount_cents,
+            amount: payment.amount_cents,
         }, idempotency_key.as_deref()).await;
 
         let bank_resp = match bank_resp {
