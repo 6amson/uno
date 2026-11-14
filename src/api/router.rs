@@ -14,12 +14,12 @@ pub struct AppState {
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/payments/authorize", post(crate::api::handlers::authorize))
-        .route("/payments/:id/capture", post(crate::api::handlers::capture))
-        .route("/payments/:id/void", post(crate::api::handlers::void_payment))
-        .route("/payments/:id/refund", post(crate::api::handlers::refund))
-        .route("/payments/:id", get(crate::api::handlers::get_payment))
-        .route("/orders/:order_id/payments", get(crate::api::handlers::get_by_order))
-        .route("/customers/:customer_id/payments", get(crate::api::handlers::list_by_customer))
+        .route("/payments/{id}/capture", post(crate::api::handlers::capture))
+        .route("/payments/{id}/void", post(crate::api::handlers::void_payment))
+        .route("/payments/{id}/refund", post(crate::api::handlers::refund))
+        .route("/payments/{id}", get(crate::api::handlers::get_payment))
+        .route("/orders/{order_id}/payments", get(crate::api::handlers::get_by_order))
+        .route("/customers/{customer_id}/payments", get(crate::api::handlers::list_by_customer))
         .with_state(state)
 }
 
