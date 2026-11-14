@@ -1,7 +1,7 @@
 use crate::domain::models::{Payment, CardToken, PaymentState};
 use crate::domain::errors::GatewayError;
 use crate::storage::repository::Repository;
-use crate::bank::client::{BankClient, AuthorizeRequest, CaptureRequest, VoidRequest, RefundRequest};
+use crate::bank::client::{BankClient, AuthorizeRequest, CaptureRequest, VoidRequest, RefundRequest, BankError};
 use crate::services::idempotency::{IdempotencyLayer, IdempotencyOutcome};
 use uuid::Uuid;
 use chrono::Utc;
@@ -76,6 +76,11 @@ impl PaymentService {
             Ok(r) => r,
             Err(e) => {
                 // Bank call failed; payment stays PENDING. Recovery worker will resolve.
+                // Delete the stranded idempotency key so a safe retry can proceed.
+                if let Some(key) = &idempotency_key {
+                    let _ = self.repo.delete_idempotency_key(key).await;
+                }
+                let _ = self.repo.clear_inflight(id).await;
                 return Err(GatewayError::Bank(e.to_string()));
             }
         };
@@ -158,7 +163,15 @@ impl PaymentService {
 
         let bank_resp = match bank_resp {
             Ok(r) => r,
-            Err(e) => return Err(GatewayError::Bank(e.to_string())),
+            Err(e) => {
+                // Bank call failed; delete stranded idempotency key so a safe
+                // retry can proceed, then return the bank error.
+                if let Some(key) = &idempotency_key {
+                    let _ = self.repo.delete_idempotency_key(key).await;
+                }
+                let _ = self.repo.clear_inflight(payment_id).await;
+                return Err(GatewayError::Bank(e.to_string()));
+            }
         };
 
         // Transition AUTHORIZED -> CAPTURED
@@ -230,7 +243,15 @@ impl PaymentService {
         let bank_resp = self.bank.void(VoidRequest { authorization_id: bank_ref.clone() }, idempotency_key.as_deref()).await;
         let bank_resp = match bank_resp {
             Ok(r) => r,
-            Err(e) => return Err(GatewayError::Bank(e.to_string())),
+            Err(e) => {
+                // Bank call failed; delete stranded idempotency key so a safe
+                // retry can proceed, then return the bank error.
+                if let Some(key) = &idempotency_key {
+                    let _ = self.repo.delete_idempotency_key(key).await;
+                }
+                let _ = self.repo.clear_inflight(payment_id).await;
+                return Err(GatewayError::Bank(e.to_string()));
+            }
         };
 
         let updated = self.repo.update_state(
@@ -305,7 +326,15 @@ impl PaymentService {
 
         let bank_resp = match bank_resp {
             Ok(r) => r,
-            Err(e) => return Err(GatewayError::Bank(e.to_string())),
+            Err(e) => {
+                // Bank call failed; delete stranded idempotency key so a safe
+                // retry can proceed, then return the bank error.
+                if let Some(key) = &idempotency_key {
+                    let _ = self.repo.delete_idempotency_key(key).await;
+                }
+                let _ = self.repo.clear_inflight(payment_id).await;
+                return Err(GatewayError::Bank(e.to_string()));
+            }
         };
 
         let updated = self.repo.update_state(

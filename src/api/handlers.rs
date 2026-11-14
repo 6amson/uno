@@ -5,6 +5,11 @@ use crate::domain::models::CardToken;
 use uuid::Uuid;
 use tracing::error;
 
+#[derive(Serialize)]
+pub struct ErrorResponse {
+    pub error: String,
+}
+
 #[derive(Deserialize)]
 pub struct AuthorizeRequest {
     pub order_id: String,
@@ -39,7 +44,7 @@ pub struct PaymentSummary {
 pub async fn authorize(
     State(state): State<AppState>,
     Json(req): Json<AuthorizeRequest>,
-) -> Result<Json<AuthorizeResponse>, StatusCode> {
+) -> Result<Json<AuthorizeResponse>, (StatusCode, Json<ErrorResponse>)> {
     let card_token = CardToken {
         card_number: req.card_number,
         cvv: req.cvv,
@@ -56,7 +61,7 @@ pub async fn authorize(
         req.idempotency_key,
     ).await.map_err(|e| {
         error!("authorize failed: {e}");
-        StatusCode::INTERNAL_SERVER_ERROR
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: e.to_string() }))
     })?;
 
     Ok(Json(AuthorizeResponse {
@@ -76,13 +81,13 @@ pub async fn capture(
     State(state): State<AppState>,
     Path(payment_id): Path<Uuid>,
     headers: HeaderMap,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
     let idempotency_key = idempotency_key_from_headers(&headers);
     state.service.capture(payment_id, idempotency_key).await
         .map(|_| StatusCode::OK)
         .map_err(|e| {
             error!("capture failed for payment {}: {e}", payment_id);
-            StatusCode::INTERNAL_SERVER_ERROR
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: e.to_string() }))
         })
 }
 
@@ -90,13 +95,13 @@ pub async fn void_payment(
     State(state): State<AppState>,
     Path(payment_id): Path<Uuid>,
     headers: HeaderMap,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
     let idempotency_key = idempotency_key_from_headers(&headers);
     state.service.void(payment_id, idempotency_key).await
         .map(|_| StatusCode::OK)
         .map_err(|e| {
             error!("void failed for payment {}: {e}", payment_id);
-            StatusCode::INTERNAL_SERVER_ERROR
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: e.to_string() }))
         })
 }
 
@@ -104,26 +109,26 @@ pub async fn refund(
     State(state): State<AppState>,
     Path(payment_id): Path<Uuid>,
     headers: HeaderMap,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
     let idempotency_key = idempotency_key_from_headers(&headers);
     state.service.refund(payment_id, idempotency_key).await
         .map(|_| StatusCode::OK)
         .map_err(|e| {
             error!("refund failed for payment {}: {e}", payment_id);
-            StatusCode::INTERNAL_SERVER_ERROR
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: e.to_string() }))
         })
 }
 
 pub async fn get_payment(
     State(state): State<AppState>,
     Path(payment_id): Path<Uuid>,
-) -> Result<Json<PaymentSummary>, StatusCode> {
+) -> Result<Json<PaymentSummary>, (StatusCode, Json<ErrorResponse>)> {
     let payment = state.service.get(payment_id).await
         .map_err(|e| {
             error!("get_payment failed for {}: {e}", payment_id);
-            StatusCode::INTERNAL_SERVER_ERROR
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: e.to_string() }))
         })?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .ok_or((StatusCode::NOT_FOUND, Json(ErrorResponse { error: "not found".into() })))?;
 
     Ok(Json(PaymentSummary {
         payment_id: payment.id.to_string(),
@@ -140,13 +145,13 @@ pub async fn get_payment(
 pub async fn get_by_order(
     State(state): State<AppState>,
     Path(order_id): Path<String>,
-) -> Result<Json<PaymentSummary>, StatusCode> {
+) -> Result<Json<PaymentSummary>, (StatusCode, Json<ErrorResponse>)> {
     let payment = state.service.get_by_order(&order_id).await
         .map_err(|e| {
             error!("get_by_order failed for {}: {e}", order_id);
-            StatusCode::INTERNAL_SERVER_ERROR
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: e.to_string() }))
         })?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .ok_or((StatusCode::NOT_FOUND, Json(ErrorResponse { error: "not found".into() })))?;
 
     Ok(Json(PaymentSummary {
         payment_id: payment.id.to_string(),
@@ -163,11 +168,11 @@ pub async fn get_by_order(
 pub async fn list_by_customer(
     State(state): State<AppState>,
     Path(customer_id): Path<String>,
-) -> Result<Json<Vec<PaymentSummary>>, StatusCode> {
+) -> Result<Json<Vec<PaymentSummary>>, (StatusCode, Json<ErrorResponse>)> {
     let payments = state.service.list_by_customer(&customer_id).await
         .map_err(|e| {
             error!("list_by_customer failed for {}: {e}", customer_id);
-            StatusCode::INTERNAL_SERVER_ERROR
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: e.to_string() }))
         })?;
 
     Ok(Json(payments.into_iter().map(|p| PaymentSummary {
