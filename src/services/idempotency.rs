@@ -8,6 +8,7 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 /// Outcome of checking/reserving an idempotency key.
+#[derive(Debug)]
 pub enum IdempotencyOutcome {
     /// This caller won the reservation and should proceed to process the request.
     Reserved,
@@ -18,6 +19,7 @@ pub enum IdempotencyOutcome {
 /// A single cached completed idempotency entry with an expiry timestamp.
 #[derive(Clone)]
 struct CacheEntry {
+    request_hash: String,
     response_body: String,
     expires_at: u64, // epoch seconds
 }
@@ -81,7 +83,10 @@ impl IdempotencyLayer {
             let guard = self.cache.lock().await;
             if let Some(entry) = guard.get(key) {
                 if Self::now_seconds() < entry.expires_at {
-                    return Ok(IdempotencyOutcome::Replay(entry.response_body.clone()));
+                    if entry.request_hash == request_hash {
+                        return Ok(IdempotencyOutcome::Replay(entry.response_body.clone()));
+                    }
+                    return Err(GatewayError::IdempotencyConflict);
                 }
             }
         }
@@ -106,6 +111,7 @@ impl IdempotencyLayer {
                         })?;
                         // Repopulate memory for future fast replays.
                         let entry = CacheEntry {
+                            request_hash: stored_hash.clone(),
                             response_body: body.clone(),
                             expires_at: Self::now_seconds() + self.ttl_seconds,
                         };
@@ -147,13 +153,14 @@ impl IdempotencyLayer {
     pub async fn complete(
         &self,
         key: &str,
-        _request_hash: &str,
+        request_hash: &str,
         payment_id: Option<Uuid>,
         response_body: &str,
     ) -> Result<(), GatewayError> {
         self.repo.complete_idempotency(key, payment_id, response_body).await?;
 
         let entry = CacheEntry {
+            request_hash: request_hash.to_string(),
             response_body: response_body.to_string(),
             expires_at: Self::now_seconds() + self.ttl_seconds,
         };
