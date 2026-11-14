@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::api::router::AppState;
 use crate::domain::models::CardToken;
 use uuid::Uuid;
+use tracing::error;
 
 #[derive(Deserialize)]
 pub struct AuthorizeRequest {
@@ -53,7 +54,10 @@ pub async fn authorize(
         req.amount_cents,
         card_token,
         req.idempotency_key,
-    ).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    ).await.map_err(|e| {
+        error!("authorize failed: {e}");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     Ok(Json(AuthorizeResponse {
         payment_id: payment.id.to_string(),
@@ -76,7 +80,10 @@ pub async fn capture(
     let idempotency_key = idempotency_key_from_headers(&headers);
     state.service.capture(payment_id, idempotency_key).await
         .map(|_| StatusCode::OK)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e| {
+            error!("capture failed for payment {}: {e}", payment_id);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 pub async fn void_payment(
@@ -87,7 +94,10 @@ pub async fn void_payment(
     let idempotency_key = idempotency_key_from_headers(&headers);
     state.service.void(payment_id, idempotency_key).await
         .map(|_| StatusCode::OK)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e| {
+            error!("void failed for payment {}: {e}", payment_id);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 pub async fn refund(
@@ -98,7 +108,10 @@ pub async fn refund(
     let idempotency_key = idempotency_key_from_headers(&headers);
     state.service.refund(payment_id, idempotency_key).await
         .map(|_| StatusCode::OK)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e| {
+            error!("refund failed for payment {}: {e}", payment_id);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 pub async fn get_payment(
@@ -106,7 +119,10 @@ pub async fn get_payment(
     Path(payment_id): Path<Uuid>,
 ) -> Result<Json<PaymentSummary>, StatusCode> {
     let payment = state.service.get(payment_id).await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map_err(|e| {
+            error!("get_payment failed for {}: {e}", payment_id);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
         .ok_or(StatusCode::NOT_FOUND)?;
 
     Ok(Json(PaymentSummary {
@@ -126,7 +142,10 @@ pub async fn get_by_order(
     Path(order_id): Path<String>,
 ) -> Result<Json<PaymentSummary>, StatusCode> {
     let payment = state.service.get_by_order(&order_id).await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map_err(|e| {
+            error!("get_by_order failed for {}: {e}", order_id);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
         .ok_or(StatusCode::NOT_FOUND)?;
 
     Ok(Json(PaymentSummary {
@@ -146,7 +165,10 @@ pub async fn list_by_customer(
     Path(customer_id): Path<String>,
 ) -> Result<Json<Vec<PaymentSummary>>, StatusCode> {
     let payments = state.service.list_by_customer(&customer_id).await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            error!("list_by_customer failed for {}: {e}", customer_id);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     Ok(Json(payments.into_iter().map(|p| PaymentSummary {
         payment_id: p.id.to_string(),
