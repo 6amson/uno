@@ -537,11 +537,8 @@ pub async fn swagger_ui() -> impl axum::response::IntoResponse {
                 dom_id: "#swagger-ui",
                 presets: [
                     SwaggerUIBundle.presets.apis,
-                    SwaggerUIBundle.presets.standalone,
                 ],
-                layout: "StandaloneLayout",
             });
-            window.ui = ui;
         };
     </script>
 </body>
