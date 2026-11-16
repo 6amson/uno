@@ -16,6 +16,7 @@ use std::time::Duration;
 
 #[tokio::main]
 async fn main() {
+    dotenv::dotenv().ok();
     tracing_subscriber::fmt::init();
 
     let database_url = std::env::var("DATABASE_URL")
