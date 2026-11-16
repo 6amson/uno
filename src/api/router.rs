@@ -20,6 +20,8 @@ pub fn router(state: AppState) -> Router {
         .route("/payments/{id}", get(crate::api::handlers::get_payment))
         .route("/orders/{order_id}/payments", get(crate::api::handlers::get_by_order))
         .route("/customers/{customer_id}/payments", get(crate::api::handlers::list_by_customer))
+        .route("/openapi.json", get(crate::api::handlers::openapi_spec))
+        .route("/docs", get(crate::api::handlers::swagger_ui))
         .with_state(state)
 }
 

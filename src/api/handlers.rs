@@ -186,3 +186,363 @@ pub async fn list_by_customer(
         last_four: p.last_four,
     }).collect()))
 }
+
+/// Serve the OpenAPI JSON specification.
+pub async fn openapi_spec() -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "openapi": "3.0.3",
+        "info": {
+            "title": "Uno Payment Gateway",
+            "description": "Payment gateway with idempotency, state machine transitions, and crash recovery",
+            "version": "0.1.0"
+        },
+        "servers": [
+            {
+                "url": "http://localhost:8080",
+                "description": "Local development server"
+            }
+        ],
+        "tags": [
+            {
+                "name": "payments",
+                "description": "Payment authorization, capture, void, and refund operations"
+            }
+        ],
+        "paths": {
+            "/payments/authorize": {
+                "post": {
+                    "tags": ["payments"],
+                    "summary": "Authorize a payment",
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AuthorizeRequest"
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Payment authorized",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/AuthorizeResponse"
+                                    }
+                                }
+                            }
+                        },
+                        "400": {
+                            "description": "Bad request",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/ErrorResponse"
+                                    }
+                                }
+                            }
+                        },
+                        "500": {
+                            "description": "Internal server error",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/ErrorResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/payments/{id}/capture": {
+                "post": {
+                    "tags": ["payments"],
+                    "summary": "Capture an authorized payment",
+                    "parameters": [
+                        {
+                            "name": "id",
+                            "in": "path",
+                            "required": true,
+                            "schema": {
+                                "type": "string",
+                                "format": "uuid"
+                            }
+                        }
+                    ],
+                    "parameters_header": {
+                        "$ref": "#/components/parameters/IdempotencyKey"
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Payment captured"
+                        },
+                        "400": {
+                            "description": "Bad request",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/ErrorResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/payments/{id}/void": {
+                "post": {
+                    "tags": ["payments"],
+                    "summary": "Void an authorized payment",
+                    "parameters": [
+                        {
+                            "name": "id",
+                            "in": "path",
+                            "required": true,
+                            "schema": {
+                                "type": "string",
+                                "format": "uuid"
+                            }
+                        }
+                    ],
+                    "parameters_header": {
+                        "$ref": "#/components/parameters/IdempotencyKey"
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Payment voided"
+                        },
+                        "400": {
+                            "description": "Bad request",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/ErrorResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/payments/{id}/refund": {
+                "post": {
+                    "tags": ["payments"],
+                    "summary": "Refund a captured payment",
+                    "parameters": [
+                        {
+                            "name": "id",
+                            "in": "path",
+                            "required": true,
+                            "schema": {
+                                "type": "string",
+                                "format": "uuid"
+                            }
+                        }
+                    ],
+                    "parameters_header": {
+                        "$ref": "#/components/parameters/IdempotencyKey"
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Payment refunded"
+                        },
+                        "400": {
+                            "description": "Bad request",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/ErrorResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/payments/{id}": {
+                "get": {
+                    "tags": ["payments"],
+                    "summary": "Get a payment",
+                    "parameters": [
+                        {
+                            "name": "id",
+                            "in": "path",
+                            "required": true,
+                            "schema": {
+                                "type": "string",
+                                "format": "uuid"
+                            }
+                        }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "Payment details",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/PaymentSummary"
+                                    }
+                                }
+                            }
+                        },
+                        "404": {
+                            "description": "Payment not found"
+                        }
+                    }
+                }
+            },
+            "/orders/{order_id}/payments": {
+                "get": {
+                    "tags": ["payments"],
+                    "summary": "Get payment by order ID",
+                    "parameters": [
+                        {
+                            "name": "order_id",
+                            "in": "path",
+                            "required": true,
+                            "schema": {
+                                "type": "string"
+                            }
+                        }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "Payment details",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/PaymentSummary"
+                                    }
+                                }
+                            }
+                        },
+                        "404": {
+                            "description": "Payment not found"
+                        }
+                    }
+                }
+            },
+            "/customers/{customer_id}/payments": {
+                "get": {
+                    "tags": ["payments"],
+                    "summary": "List payments by customer ID",
+                    "parameters": [
+                        {
+                            "name": "customer_id",
+                            "in": "path",
+                            "required": true,
+                            "schema": {
+                                "type": "string"
+                            }
+                        }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "List of payments",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/PaymentSummary"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "components": {
+            "schemas": {
+                "AuthorizeRequest": {
+                    "type": "object",
+                    "required": ["order_id", "customer_id", "amount_cents", "card_number", "cvv", "card_last_four", "card_expiry_month", "card_expiry_year"],
+                    "properties": {
+                        "order_id": { "type": "string", "description": "Order identifier" },
+                        "customer_id": { "type": "string", "description": "Customer identifier" },
+                        "amount_cents": { "type": "integer", "description": "Amount in cents", "example": 1000 },
+                        "card_number": { "type": "string", "description": "Card number", "example": "4111111111111111" },
+                        "cvv": { "type": "string", "description": "Card CVV", "example": "123" },
+                        "card_last_four": { "type": "string", "description": "Last four digits", "example": "1111" },
+                        "card_expiry_month": { "type": "integer", "description": "Expiry month", "example": 12 },
+                        "card_expiry_year": { "type": "integer", "description": "Expiry year", "example": 2026 },
+                        "idempotency_key": { "type": "string", "description": "Idempotency key (optional)" }
+                    }
+                },
+                "AuthorizeResponse": {
+                    "type": "object",
+                    "properties": {
+                        "payment_id": { "type": "string", "description": "Payment UUID" },
+                        "state": { "type": "string", "description": "Payment state" }
+                    }
+                },
+                "PaymentSummary": {
+                    "type": "object",
+                    "properties": {
+                        "payment_id": { "type": "string", "description": "Payment UUID" },
+                        "order_id": { "type": "string", "description": "Order identifier" },
+                        "customer_id": { "type": "string", "description": "Customer identifier" },
+                        "amount_cents": { "type": "integer", "description": "Amount in cents" },
+                        "currency": { "type": "string", "description": "Currency code", "example": "USD" },
+                        "state": { "type": "string", "description": "Payment state" },
+                        "bank_reference": { "type": "string", "nullable": true, "description": "Bank reference" },
+                        "last_four": { "type": "string", "nullable": true, "description": "Card last four digits" }
+                    }
+                },
+                "ErrorResponse": {
+                    "type": "object",
+                    "required": ["error"],
+                    "properties": {
+                        "error": { "type": "string", "description": "Error message" }
+                    }
+                }
+            },
+            "parameters": {
+                "IdempotencyKey": {
+                    "name": "Idempotency-Key",
+                    "in": "header",
+                    "description": "Idempotency key for idempotent requests",
+                    "required": false,
+                    "schema": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }))
+}
+
+/// Serve the Swagger UI HTML page.
+pub async fn swagger_ui() -> impl axum::response::IntoResponse {
+    axum::response::Html(r##"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Uno Payment Gateway - Swagger UI</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+</head>
+<body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script>
+        window.onload = () => {
+            const ui = SwaggerUIBundle({
+                url: "/openapi.json",
+                dom_id: "#swagger-ui",
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                ],
+                layout: "StandaloneLayout",
+            });
+            window.ui = ui;
+        };
+    </script>
+</body>
+</html>"##)
+}
