@@ -270,11 +270,17 @@ pub async fn openapi_spec() -> Json<serde_json::Value> {
                                 "type": "string",
                                 "format": "uuid"
                             }
+                        },
+                        {
+                            "name": "Idempotency-Key",
+                            "in": "header",
+                            "required": false,
+                            "schema": {
+                                "type": "string"
+                            },
+                            "description": "Idempotency key for idempotent requests"
                         }
                     ],
-                    "parameters_header": {
-                        "$ref": "#/components/parameters/IdempotencyKey"
-                    },
                     "responses": {
                         "200": {
                             "description": "Payment captured"
@@ -305,11 +311,17 @@ pub async fn openapi_spec() -> Json<serde_json::Value> {
                                 "type": "string",
                                 "format": "uuid"
                             }
+                        },
+                        {
+                            "name": "Idempotency-Key",
+                            "in": "header",
+                            "required": false,
+                            "schema": {
+                                "type": "string"
+                            },
+                            "description": "Idempotency key for idempotent requests"
                         }
                     ],
-                    "parameters_header": {
-                        "$ref": "#/components/parameters/IdempotencyKey"
-                    },
                     "responses": {
                         "200": {
                             "description": "Payment voided"
@@ -340,11 +352,17 @@ pub async fn openapi_spec() -> Json<serde_json::Value> {
                                 "type": "string",
                                 "format": "uuid"
                             }
+                        },
+                        {
+                            "name": "Idempotency-Key",
+                            "in": "header",
+                            "required": false,
+                            "schema": {
+                                "type": "string"
+                            },
+                            "description": "Idempotency key for idempotent requests"
                         }
                     ],
-                    "parameters_header": {
-                        "$ref": "#/components/parameters/IdempotencyKey"
-                    },
                     "responses": {
                         "200": {
                             "description": "Payment refunded"
