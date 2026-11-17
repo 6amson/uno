@@ -61,7 +61,7 @@ Integration tests require a Postgres database via `DATABASE_URL` and the mock ba
 
 ## Tradeoffs
 
-See `TRADEOFFS.md` for design decisions around idempotency, recovery consistency, and polling intervals.
+See `TRADEOFFS.md` for design decisions around idempotency, recovery consistency, and polling intervals, including a note on reconciliation gaps.
 
 ---
 
