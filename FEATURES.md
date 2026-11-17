@@ -3,6 +3,13 @@
 This document lists every implemented feature in the Uno payment gateway, grouped
 by functional area, with notes on how each works and where to find the code.
 
+**Repository:** https://github.com/6amson/uno
+
+## Related Documents
+
+- [README](../README.md) — run instructions, endpoints, quick start
+- [Architecture & Design Decisions](ARCHITECTURE.md) — system design, data flow, module boundaries, database schema, HTTP API
+
 ## 1. Payment Lifecycle
 
 ### Authorize (POST /payments/authorize)

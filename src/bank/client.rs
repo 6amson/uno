@@ -228,7 +228,7 @@ impl BankClient {
             .unwrap_or_else(|| BankError::Transient("exhausted retries".into())))
     }
 
-    pub fn is_permanent(status: u16) -> bool {
-        (400..=499).contains(&status)
-    }
+    // pub fn is_permanent(status: u16) -> bool {
+    //     (400..=499).contains(&status)
+    // }
 }

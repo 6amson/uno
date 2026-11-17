@@ -3,6 +3,13 @@
 This document describes the internal design, component boundaries, data flow, and key
 engineering decisions made for the Uno payment gateway.
 
+**Repository:** https://github.com/6amson/uno
+
+## Related Documents
+
+- [README](../README.md) — run instructions, endpoints, quick start
+- [Features](FEATURES.md) — all implemented features, what's not implemented, testing, configuration
+
 ## 1. High-Level Overview
 
 Uno is a Rust (Axum + SQLx + Tokio) payment gateway that sits between a merchant
@@ -12,6 +19,24 @@ transitions, in-flight crash recovery, and authorization TTL sweeps.
 
 The service is stateless except for Postgres, which is the source of truth for
 payments, idempotency keys, in-flight markers, and state history.
+
+### External Dependencies
+
+| Component | Location | Notes |
+|-----------|----------|-------|
+| Uno Gateway | https://github.com/6amson/uno | This repository |
+| Mock Bank API | `localhost:8787` | Provided externally (Backend Engineer Path project) |
+| Postgres | `DATABASE_URL` | Required, configured via env var |
+
+The mock bank API is **external infrastructure** your gateway talks to over HTTP.
+It is **not** part of this repository and is **not** versioned here. It provides:
+- `POST /api/v1/authorizations`, `/api/v1/captures`, `/api/v1/voids`, `/api/v1/refunds`
+- `GET` endpoints for each resource
+- `Idempotency-Key` header requirement on all POSTs
+- Chaos failures (~5% random 500s, 100-2000ms latency)
+- 7-day authorization expiry
+
+See `FEATURES.md` for full bank API endpoint details and test card numbers.
 
 ## 2. Module Structure
 

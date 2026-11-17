@@ -2,10 +2,19 @@
 
 A Rust payment gateway with idempotency, state machine transitions, in-flight markers, and crash recovery.
 
+**Repository:** https://github.com/6amson/uno
+
+**Mock Bank API:** Provided externally at `localhost:8787` (part of the "Backend Engineer Path" project by benx421). This is external infrastructure your gateway talks to — not part of this repository.
+
+## Documentation
+
+- [Architecture & Design Decisions](ARCHITECTURE.md) — system design, data flow, module boundaries, database schema, HTTP API
+- [Features](FEATURES.md) — all implemented features, what's not implemented, testing, configuration
+
 ## Stack
 
 - Rust 2024, Axum, SQLx (Postgres), Tokio, Serde, SHA-2
-- Mock bank API on `localhost:8787`
+- Mock bank API on `localhost:8787` (external dependency)
 
 ## Run
 
@@ -48,8 +57,15 @@ A background worker scans for stuck payments (in-flight markers older than 5 min
 cargo test --bin Uno
 ```
 
-Integration tests require a Postgres database via `DATABASE_URL`.
+Integration tests require a Postgres database via `DATABASE_URL` and the mock bank running at `localhost:8787`.
 
 ## Tradeoffs
 
 See `TRADEOFFS.md` for design decisions around idempotency, recovery consistency, and polling intervals.
+
+---
+
+## Related Documents
+
+- [Architecture & Design Decisions](ARCHITECTURE.md) — system design, data flow, module boundaries, database schema, HTTP API
+- [Features](FEATURES.md) — all implemented features, what's not implemented, testing, configuration
