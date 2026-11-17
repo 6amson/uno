@@ -77,6 +77,58 @@ impl RecoveryWorker {
         // Reconcile stranded idempotency keys left 'processing' after a crash.
         self.reconcile_stale_idempotency_keys().await?;
 
+        // Sweep stale AUTHORIZED payments that were never captured/voided.
+        self.reconcile_stale_authorized_payments().await?;
+
+        Ok(())
+    }
+
+    /// Sweep AUTHORIZED payments older than the TTL (default 7 days).
+    /// Attempts to void at the bank and transitions locally to VOIDED.
+    async fn reconcile_stale_authorized_payments(&self) -> Result<(), GatewayError> {
+        const BATCH: i64 = 100;
+        const STALE_SECONDS: i64 = 604_800; // 7 days
+
+        loop {
+            let payments = self.repo.list_stale_authorized(STALE_SECONDS, BATCH).await?;
+            if payments.is_empty() {
+                break;
+            }
+
+            for (id, _order_id, _amount_cents, bank_ref, authorized_at) in payments {
+                tracing::warn!(
+                    "payment {} ({}) authorized at {:?}, age exceeds {}s; voiding at bank",
+                    id, _order_id, authorized_at, STALE_SECONDS
+                );
+
+                match bank_ref {
+                    Some(ref bank_ref) => {
+                        match self.bank.void(
+                            crate::bank::client::VoidRequest {
+                                authorization_id: bank_ref.clone(),
+                            },
+                            None,
+                        ).await {
+                            Ok(_) => {
+                                let _ = self.repo.update_state(
+                                    id,
+                                    Some(PaymentState::Authorized),
+                                    PaymentState::Voided,
+                                    Some(bank_ref.clone()),
+                                ).await;
+                            }
+                            Err(e) => {
+                                tracing::warn!("payment {} stale authorized, bank void failed: {}", id, e);
+                            }
+                        }
+                    }
+                    None => {
+                        tracing::warn!("payment {} stale authorized but no bank reference; skipping", id);
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 

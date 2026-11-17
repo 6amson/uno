@@ -344,4 +344,47 @@ impl Repository {
         .map_err(|e| GatewayError::Storage(e.to_string()))?;
         Ok(())
     }
+
+    /// Set the authorized_at timestamp on a payment.
+    pub async fn set_authorized_at(
+        &self,
+        id: Uuid,
+        authorized_at: DateTime<Utc>,
+    ) -> Result<(), GatewayError> {
+        sqlx::query(
+            "UPDATE payments SET authorized_at = $2 WHERE id = $1",
+        )
+        .bind(id)
+        .bind(authorized_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| GatewayError::Storage(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Find AUTHORIZED payments older than the TTL, in batches.
+    /// Returns (id, order_id, amount_cents, bank_reference, authorized_at).
+    pub async fn list_stale_authorized(
+        &self,
+        older_than_seconds: i64,
+        limit: i64,
+    ) -> Result<Vec<(Uuid, String, i64, Option<String>, DateTime<Utc>)>, GatewayError> {
+        let rows = sqlx::query_as::<_, (Uuid, String, i64, Option<String>, DateTime<Utc>)>(
+            r#"
+            SELECT id, order_id, amount_cents, bank_reference, authorized_at
+            FROM payments
+            WHERE state = 'AUTHORIZED'
+              AND authorized_at IS NOT NULL
+              AND authorized_at < NOW() - ($1 * interval '1 second')
+            ORDER BY authorized_at ASC
+            LIMIT $2
+            "#,
+        )
+        .bind(older_than_seconds)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| GatewayError::Storage(e.to_string()))?;
+        Ok(rows)
+    }
 }

@@ -9,7 +9,7 @@ use tracing::{info, warn};
 
 #[derive(Clone)]
 pub struct PaymentService {
-    repo: Repository,
+    pub repo: Repository,
     bank: BankClient,
     idempotency: IdempotencyLayer,
 }
@@ -58,6 +58,7 @@ impl PaymentService {
             last_four: Some(card_token.last_four.clone()),
             created_at: now,
             updated_at: now,
+            authorized_at: None,
         };
         self.repo.create_payment(&payment).await?;
 
@@ -98,6 +99,9 @@ impl PaymentService {
         ).await?;
 
         info!("authorize: payment {} updated to state={:?} bank_ref={:?}", id, updated.state, updated.bank_reference);
+
+        // Record when authorization was granted, for stale-payment sweeps
+        self.repo.set_authorized_at(id, now).await?;
 
         // Store idempotency response (before clearing inflight, so a crash
         // between the two leaves the inflight marker for recovery to find).
@@ -155,6 +159,19 @@ impl PaymentService {
                 from: format!("{:?}", payment.state),
                 to: "Captured".to_string(),
             });
+        }
+
+        // Authorization expiry guard: reject captures on stale authorizations
+        const AUTH_TTL_SECONDS: i64 = 604_800; // 7 days
+        if let Some(auth_at) = payment.authorized_at {
+            let age_seconds = (Utc::now() - auth_at).num_seconds();
+            if age_seconds > AUTH_TTL_SECONDS {
+                warn!("capture: payment {} authorization expired (age={}s > {})", payment_id, age_seconds, AUTH_TTL_SECONDS);
+                return Err(GatewayError::Bank(format!("authorization expired after {} days", AUTH_TTL_SECONDS / 86400)));
+            }
+        } else {
+            warn!("capture: payment {} has no authorized_at timestamp", payment_id);
+            return Err(GatewayError::Bank("authorization timestamp missing".into()));
         }
 
         let bank_ref = payment.bank_reference.ok_or_else(|| GatewayError::Internal(
