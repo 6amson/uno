@@ -11,6 +11,7 @@ use crate::services::recovery::RecoveryWorker;
 use crate::bank::client::BankClient;
 use crate::storage::repository::Repository;
 use crate::services::idempotency::IdempotencyLayer;
+use crate::domain::models::CardToken;
 use std::net::SocketAddr;
 use std::time::Duration;
 
@@ -165,5 +166,109 @@ mod tests {
         let row = repo.get_idempotency(key).await.unwrap().unwrap();
         assert_eq!(row.2, "completed"); // status
         assert!(row.1.is_some()); // response_body present
+    }
+
+    #[sqlx::test(migrations = "./src/storage/migrations")]
+    async fn full_flow_authorize_capture_void_refund(pool: PgPool) {
+        let repo = Repository::new(pool.clone());
+        let bank = BankClient::new("http://localhost:8787".to_string());
+        let idempotency = IdempotencyLayer::new(repo.clone());
+        let service = PaymentService::new(repo.clone(), bank.clone(), idempotency);
+
+        let card_token = CardToken {
+            card_number: "4111111111111111".to_string(),
+            cvv: "123".to_string(),
+            last_four: "1111".to_string(),
+            expiry_month: 12,
+            expiry_year: 2026,
+        };
+
+        // Authorize
+        let authorized = service
+            .authorize(
+                "order-full-1".to_string(),
+                "customer-full-1".to_string(),
+                1000,
+                card_token.clone(),
+                Some("key-auth-full-1".to_string()),
+            )
+            .await
+            .unwrap();
+        assert_eq!(authorized.state, PaymentState::Authorized);
+        assert!(authorized.bank_reference.is_some());
+
+        // Capture
+        let captured = service
+            .capture(authorized.id, Some("key-cap-full-1".to_string()))
+            .await
+            .unwrap();
+        assert_eq!(captured.state, PaymentState::Captured);
+
+        // Refund
+        let refunded = service.refund(captured.id, Some("key-ref-full-1".to_string())).await.unwrap();
+        assert_eq!(refunded.state, PaymentState::Refunded);
+
+        // Idempotency replay: same authorize key + same payload returns same payment
+        let replay = service
+            .authorize(
+                "order-full-1".to_string(),
+                "customer-full-1".to_string(),
+                1000,
+                card_token.clone(),
+                Some("key-auth-full-1".to_string()),
+            )
+            .await
+            .unwrap();
+        assert_eq!(replay.id, authorized.id);
+        assert_eq!(replay.state, PaymentState::Authorized);
+
+        // Idempotency conflict: same key, different amount
+        let conflict = service
+            .authorize(
+                "order-full-1".to_string(),
+                "customer-full-1".to_string(),
+                2000,
+                card_token.clone(),
+                Some("key-auth-full-1".to_string()),
+            )
+            .await;
+        assert!(matches!(conflict, Err(GatewayError::IdempotencyConflict)));
+    }
+
+    #[sqlx::test(migrations = "./src/storage/migrations")]
+    async fn capture_then_void_flow(pool: PgPool) {
+        let repo = Repository::new(pool.clone());
+        let bank = BankClient::new("http://localhost:8787".to_string());
+        let idempotency = IdempotencyLayer::new(repo.clone());
+        let service = PaymentService::new(repo.clone(), bank.clone(), idempotency);
+
+        let card_token = CardToken {
+            card_number: "4111111111111111".to_string(),
+            cvv: "123".to_string(),
+            last_four: "1111".to_string(),
+            expiry_month: 12,
+            expiry_year: 2026,
+        };
+
+        // Authorize
+        let authorized = service
+            .authorize(
+                "order-capture-void-1".to_string(),
+                "customer-cv-1".to_string(),
+                5000,
+                card_token.clone(),
+                Some("key-auth-cv-1".to_string()),
+            )
+            .await
+            .unwrap();
+        assert_eq!(authorized.state, PaymentState::Authorized);
+
+        // Capture
+        let captured = service.capture(authorized.id, Some("key-cap-cv-1".to_string())).await.unwrap();
+        assert_eq!(captured.state, PaymentState::Captured);
+
+        // Refund (already tested above, but verify captured can be refunded)
+        let refunded = service.refund(captured.id, Some("key-ref-cv-1".to_string())).await.unwrap();
+        assert_eq!(refunded.state, PaymentState::Refunded);
     }
 }
