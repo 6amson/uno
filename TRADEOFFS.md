@@ -34,6 +34,11 @@ We store only a card token: last-four digits, expiry month/year. No PAN, no CVV.
 
 We explicitly do not support partial captures or partial refunds, multiple currencies (USD only), or building the bank mock. These simplify the state machine and the retry/recovery logic substantially. Adding them later would require revising `state.rs` (new states like `PARTIALLY_CAPTURED`), idempotency key granularity (per partial operation), and the recovery worker's reconciliation logic.
 
+## Reconciliation
+
+The gateway treats its own `payments` table as the source of truth and does not perform automated reconciliation against the bank's records. There is no double-entry ledger, no nightly match of gateway state to bank authorizations/captures, and no automated alert when our record diverges from the bank's (for example, a payment marked `AUTHORIZED` here that the bank never recorded, or vice versa). Drift between systems would require manual detection and correction. We accept this gap because building reconciliation against an external, sometimes-unreliable bank API is substantial engineering work; for now, correctness relies on the idempotency layer, recovery worker, and optimistic state machine rather than external verification. This should be added before production use.
+
 ## Operational notes
 
 Because Postgres is required at runtime but unavailable in this environment, the code is structured to compile and the pure state machine is unit-testable without a DB. Integration tests against a real Postgres and the bank mock should be added before production use. The recovery worker runs as a spawned background task alongside the Axum server; in a multi-replica deployment, leader election or a distributed lock would be needed to avoid two workers resolving the same stuck payment simultaneously — currently out of scope.
+
