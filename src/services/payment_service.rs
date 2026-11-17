@@ -5,6 +5,7 @@ use crate::bank::client::{BankClient, AuthorizeRequest, CaptureRequest, VoidRequ
 use crate::services::idempotency::{IdempotencyLayer, IdempotencyOutcome};
 use uuid::Uuid;
 use chrono::Utc;
+use tracing::{info, warn};
 
 #[derive(Clone)]
 pub struct PaymentService {
@@ -73,10 +74,13 @@ impl PaymentService {
         }, idempotency_key.as_deref()).await;
 
         let bank_resp = match bank_resp {
-            Ok(r) => r,
+            Ok(r) => {
+                info!("authorize: bank response for payment {}: status={} authorization_id={}", id, r.status, r.authorization_id);
+                r
+            }
             Err(e) => {
-                // Bank call failed; payment stays PENDING. Recovery worker will resolve.
-                // Delete the stranded idempotency key so a safe retry can proceed.
+                // Bank call failed; delete stranded idempotency key so a safe
+                // retry can proceed, then return the bank error.
                 if let Some(key) = &idempotency_key {
                     let _ = self.repo.delete_idempotency_key(key).await;
                 }
@@ -92,6 +96,8 @@ impl PaymentService {
             PaymentState::Authorized,
             Some(bank_resp.authorization_id.clone()),
         ).await?;
+
+        info!("authorize: payment {} updated to state={:?} bank_ref={:?}", id, updated.state, updated.bank_reference);
 
         // Store idempotency response (before clearing inflight, so a crash
         // between the two leaves the inflight marker for recovery to find).
@@ -140,8 +146,11 @@ impl PaymentService {
         let payment = self.repo.get_payment(payment_id).await?
             .ok_or_else(|| GatewayError::NotFound(payment_id.to_string()))?;
 
+        info!("capture: payment {} state={:?} bank_ref={:?}", payment_id, payment.state, payment.bank_reference);
+
         // State machine guard
         if payment.state != PaymentState::Authorized {
+            warn!("capture: payment {} not in Authorized state, current={:?}", payment_id, payment.state);
             return Err(GatewayError::InvalidTransition {
                 from: format!("{:?}", payment.state),
                 to: "Captured".to_string(),
@@ -162,7 +171,10 @@ impl PaymentService {
         }, idempotency_key.as_deref()).await;
 
         let bank_resp = match bank_resp {
-            Ok(r) => r,
+            Ok(r) => {
+                info!("capture: bank response for payment {}: status={} capture_id={}", payment_id, r.status, r.capture_id);
+                r
+            }
             Err(e) => {
                 // Bank call failed; delete stranded idempotency key so a safe
                 // retry can proceed, then return the bank error.
@@ -181,6 +193,8 @@ impl PaymentService {
             PaymentState::Captured,
             Some(bank_resp.capture_id.clone()),
         ).await?;
+
+        info!("capture: payment {} updated to state={:?} bank_ref={:?}", payment_id, updated.state, updated.bank_reference);
 
         // Store idempotency response (before clearing inflight, so a crash
         // between the two leaves the inflight marker for recovery to find).
