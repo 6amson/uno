@@ -1,5 +1,6 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use serde_json;
 use thiserror::Error;
 use std::time::Duration;
 
@@ -191,8 +192,18 @@ impl BankClient {
                         continue;
                     }
                     if status.is_client_error() {
-                        let error_body: BankErrorResponse = resp.json().await.unwrap_or_default();
-                        return Err(BankError::Permanent(format!("{}: {}", error_body.error, error_body.message)));
+                        let status_code = status.as_u16();
+                        let body_text = resp.text().await.unwrap_or_else(|_| String::new());
+                        let error_body: BankErrorResponse = serde_json::from_str(&body_text).unwrap_or_default();
+                        let error_detail = if error_body.error.is_empty() && error_body.message.is_empty() {
+                            body_text
+                        } else {
+                            format!("{}: {}", error_body.error, error_body.message)
+                        };
+                        return Err(BankError::Permanent(format!(
+                            "HTTP {}: {}",
+                            status_code, error_detail
+                        )));
                     }
                     return Ok(resp);
                 }
