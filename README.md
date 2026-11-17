@@ -4,7 +4,7 @@ A Rust payment gateway with idempotency, state machine transitions, in-flight ma
 
 **Repository:** https://github.com/6amson/uno
 
-**Mock Bank API:** https://github.com/benx421/payment-gateway/tree/main/bank (provided externally at `localhost:8787` — part of the "Backend Engineer Path" project by benx421). This is external infrastructure your gateway talks to — not part of this repository.
+**Mock Bank API:** https://github.com/benx421/payment-gateway/tree/main/bank
 
 ## Documentation
 

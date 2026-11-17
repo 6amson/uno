@@ -25,7 +25,7 @@ payments, idempotency keys, in-flight markers, and state history.
 | Component | Location | Notes |
 |-----------|----------|-------|
 | Uno Gateway | https://github.com/6amson/uno | This repository |
-| Mock Bank API | https://github.com/benx421/payment-gateway/tree/main/bank | Provided externally at `localhost:8787` |
+| Mock Bank API | https://github.com/benx421/payment-gateway/tree/main/bank | External dependency |
 | Postgres | `DATABASE_URL` | Required, configured via env var |
 
 The mock bank API is **external infrastructure** your gateway talks to over HTTP.

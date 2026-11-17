@@ -5,7 +5,7 @@ by functional area, with notes on how each works and where to find the code.
 
 **Repository:** https://github.com/6amson/uno
 
-**Mock Bank API:** https://github.com/benx421/payment-gateway/tree/main/bank (provided externally at `localhost:8787`)
+**Mock Bank API:** https://github.com/benx421/payment-gateway/tree/main/bank
 
 ## Related Documents
 
