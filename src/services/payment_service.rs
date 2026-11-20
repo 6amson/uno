@@ -1,5 +1,6 @@
 use crate::domain::models::{Payment, CardToken, PaymentState};
 use crate::domain::errors::GatewayError;
+use crate::domain::state::StateMachine;
 use crate::storage::repository::Repository;
 use crate::bank::client::{BankClient, AuthorizeRequest, CaptureRequest, VoidRequest, RefundRequest, BankError};
 use crate::services::idempotency::{IdempotencyLayer, IdempotencyOutcome};
@@ -153,7 +154,7 @@ impl PaymentService {
         info!("capture: payment {} state={:?} bank_ref={:?}", payment_id, payment.state, payment.bank_reference);
 
         // State machine guard
-        if payment.state != PaymentState::Authorized {
+        if !StateMachine::allowed(payment.state, PaymentState::Captured) {
             warn!("capture: payment {} not in Authorized state, current={:?}", payment_id, payment.state);
             return Err(GatewayError::InvalidTransition {
                 from: format!("{:?}", payment.state),
@@ -258,7 +259,7 @@ impl PaymentService {
         let payment = self.repo.get_payment(payment_id).await?
             .ok_or_else(|| GatewayError::NotFound(payment_id.to_string()))?;
 
-        if payment.state != PaymentState::Authorized {
+        if !StateMachine::allowed(payment.state, PaymentState::Voided) {
             return Err(GatewayError::InvalidTransition {
                 from: format!("{:?}", payment.state),
                 to: "Voided".to_string(),
@@ -337,7 +338,7 @@ impl PaymentService {
         let payment = self.repo.get_payment(payment_id).await?
             .ok_or_else(|| GatewayError::NotFound(payment_id.to_string()))?;
 
-        if payment.state != PaymentState::Captured {
+        if !StateMachine::allowed(payment.state, PaymentState::Refunded) {
             return Err(GatewayError::InvalidTransition {
                 from: format!("{:?}", payment.state),
                 to: "Refunded".to_string(),
