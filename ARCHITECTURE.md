@@ -92,7 +92,7 @@ src/
 ### Authorize
 
 ```
-Client → POST /payments/authorize (JSON body + idempotency_key)
+Client → POST /payments/authorize (JSON body, Idempotency-Key header)
   │
   ▼
 PaymentService::authorize
@@ -319,7 +319,7 @@ attempt INT NOT NULL DEFAULT 1
 | GET | `/docs` | Swagger UI |
 | GET | `/openapi.json` | OpenAPI 3.0.3 spec |
 
-Authorize accepts `idempotency_key` in the JSON body. Capture/void/refund accept
+All operations accept `Idempotency-Key` header (authorize, capture, void, refund).
 `Idempotency-Key` as an HTTP header.
 
 All error responses return JSON: `{"error": "<message>"}`.

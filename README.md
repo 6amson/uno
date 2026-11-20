@@ -31,7 +31,7 @@ Migrations run automatically on startup.
 
 | Method | Path | Body / Headers | Description |
 |---|---|---|---|
-| POST | `/payments/authorize` | `order_id`, `customer_id`, `amount_cents`, `card_number`, `cvv`, `card_last_four`, `card_expiry_month`, `card_expiry_year`, `idempotency_key?` | Authorize a payment |
+| POST | `/payments/authorize` | `order_id`, `customer_id`, `amount_cents`, `card_number`, `cvv`, `card_last_four`, `card_expiry_month`, `card_expiry_year` | Authorize a payment |
 | POST | `/payments/:id/capture` | `Idempotency-Key?` header | Capture an authorized payment |
 | POST | `/payments/:id/void` | `Idempotency-Key?` header | Void an authorized payment |
 | POST | `/payments/:id/refund` | `Idempotency-Key?` header | Refund a captured payment |
@@ -41,7 +41,7 @@ Migrations run automatically on startup.
 
 ## Idempotency
 
-Pass an `Idempotency-Key` (header for capture/void/refund, body field for authorize). The same key with the same payload replays the cached response; a different payload returns `IdempotencyConflict`.
+Pass an `Idempotency-Key` header on all operations (authorize, capture, void, refund). The same key with the same payload replays the cached response; a different payload returns `IdempotencyConflict`.
 
 ## State Machine
 

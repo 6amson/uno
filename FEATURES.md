@@ -20,8 +20,8 @@ by functional area, with notes on how each works and where to find the code.
 - On success: transitions `PENDING → AUTHORIZED`, stores the bank `authorization_id`
 - On bank decline/failure: payment stays `PENDING`, returns error
 - Requires: `order_id`, `customer_id`, `amount_cents`, `card_number`, `cvv`,
-  `card_last_four`, `card_expiry_month`, `card_expiry_year`, optional
-  `idempotency_key`
+  `card_last_four`, `card_expiry_month`, `card_expiry_year`
+- Requires `Idempotency-Key` header
 
 ### Capture (POST /payments/{id}/capture)
 - Transitions `AUTHORIZED → CAPTURED`
@@ -197,8 +197,7 @@ Managed via SQLx migrations in `src/storage/migrations/`:
   "cvv": "123",
   "card_last_four": "1111",
   "card_expiry_month": 12,
-  "card_expiry_year": 2026,
-  "idempotency_key": "optional-string"
+  "card_expiry_year": 2026
 }
 ```
 

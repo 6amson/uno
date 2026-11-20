@@ -20,7 +20,6 @@ pub struct AuthorizeRequest {
     pub card_last_four: String,
     pub card_expiry_month: u8,
     pub card_expiry_year: u16,
-    pub idempotency_key: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -44,6 +43,7 @@ pub struct PaymentSummary {
 pub async fn authorize(
     State(state): State<AppState>,
     Json(req): Json<AuthorizeRequest>,
+    headers: HeaderMap,
 ) -> Result<Json<AuthorizeResponse>, (StatusCode, Json<ErrorResponse>)> {
     let card_token = CardToken {
         card_number: req.card_number,
@@ -53,12 +53,14 @@ pub async fn authorize(
         expiry_year: req.card_expiry_year,
     };
 
+    let idempotency_key = idempotency_key_from_headers(&headers);
+
     let payment = state.service.authorize(
         req.order_id,
         req.customer_id,
         req.amount_cents,
         card_token,
-        req.idempotency_key,
+        idempotency_key,
     ).await.map_err(|e| {
         error!("authorize failed: {e}");
         (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: e.to_string() }))

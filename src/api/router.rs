@@ -13,7 +13,6 @@ pub struct AppState {
 
 pub fn router(state: AppState) -> Router {
     Router::new()
-        .route("/payments/authorize", post(crate::api::handlers::authorize))
         .route("/payments/{id}/capture", post(crate::api::handlers::capture))
         .route("/payments/{id}/void", post(crate::api::handlers::void_payment))
         .route("/payments/{id}/refund", post(crate::api::handlers::refund))
