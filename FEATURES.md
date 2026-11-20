@@ -51,8 +51,7 @@ by functional area, with notes on how each works and where to find the code.
 
 ### Per-Operation Keys
 Each operation (authorize, capture, void, refund) requires its own idempotency
-key. Authorize takes the key in the JSON body; capture/void/refund take it as an
-`Idempotency-Key` HTTP header.
+key. All four operations pass the key via the `Idempotency-Key` HTTP header.
 
 ### Guarantees
 - **Same key + same payload** → returns the cached response from the first call
