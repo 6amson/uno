@@ -1,5 +1,5 @@
 use crate::storage::repository::Repository;
-use crate::bank::client::BankClient;
+use crate::bank::client::{BankClient, BankError};
 use crate::domain::models::PaymentState;
 use crate::domain::errors::GatewayError;
 use std::time::Duration;
@@ -41,30 +41,8 @@ impl RecoveryWorker {
                     let _ = self.repo.clear_inflight(payment.id).await;
                 }
                 PaymentState::Authorized => {
-                    // Stuck after authorize succeeded but before state was saved,
-                    // OR stuck during capture/void. Try voiding at the bank to release
-                    // the authorization, then transition to VOIDED locally.
-                    if let Some(ref bank_ref) = payment.bank_reference {
-                        match self.bank.void(
-                            crate::bank::client::VoidRequest {
-                                authorization_id: bank_ref.clone(),
-                            },
-                            None,
-                        ).await {
-                            Ok(_) => {
-                                let _ = self.repo.update_state(
-                                    payment.id,
-                                    Some(PaymentState::Authorized),
-                                    PaymentState::Voided,
-                                    Some(bank_ref.clone()),
-                                ).await;
-                            }
-                            Err(_) => {
-                                // Bank may not have the auth either; leave authorized
-                                tracing::warn!("payment {} stuck AUTHORIZED, could not void at bank", payment.id);
-                            }
-                        }
-                    }
+                    // Authorization succeeded at the bank (we have bank_reference).
+                    // Just clear the inflight marker; keep AUTHORIZED.
                     let _ = self.repo.clear_inflight(payment.id).await;
                 }
                 PaymentState::Captured | PaymentState::Refunded | PaymentState::Voided => {
@@ -116,14 +94,32 @@ impl RecoveryWorker {
                                     PaymentState::Voided,
                                     Some(bank_ref.clone()),
                                 ).await;
+                                tracing::info!("payment {} voided at bank and locally", id);
                             }
-                            Err(e) => {
-                                tracing::warn!("payment {} stale authorized, bank void failed: {}", id, e);
+                            Err(BankError::Permanent(_)) => {
+                                // Bank auth expired or already voided — mark VOIDED locally
+                                tracing::warn!("payment {} AUTHORIZED but bank void rejected ({}), marking VOIDED locally", id, bank_ref);
+                                let _ = self.repo.update_state(
+                                    id,
+                                    Some(PaymentState::Authorized),
+                                    PaymentState::Voided,
+                                    Some(bank_ref.clone()),
+                                ).await;
+                            }
+                            Err(_) => {
+                                // Transient error (timeout, 5xx) → leave AUTHORIZED, retry next cycle
+                                tracing::warn!("payment {} AUTHORIZED, bank void transient error, retrying later", id);
                             }
                         }
                     }
                     None => {
-                        tracing::warn!("payment {} stale authorized but no bank reference; skipping", id);
+                        tracing::warn!("payment {} AUTHORIZED but no bank reference; marking VOIDED locally", id);
+                        let _ = self.repo.update_state(
+                            id,
+                            Some(PaymentState::Authorized),
+                            PaymentState::Voided,
+                            None,
+                        ).await;
                     }
                 }
             }
