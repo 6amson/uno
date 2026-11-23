@@ -363,15 +363,15 @@ impl Repository {
     }
 
     /// Find AUTHORIZED payments older than the TTL, in batches.
-    /// Returns (id, order_id, amount_cents, bank_reference, authorized_at).
     pub async fn list_stale_authorized(
         &self,
         older_than_seconds: i64,
         limit: i64,
-    ) -> Result<Vec<(Uuid, String, i64, Option<String>, DateTime<Utc>)>, GatewayError> {
-        let rows = sqlx::query_as::<_, (Uuid, String, i64, Option<String>, DateTime<Utc>)>(
+    ) -> Result<Vec<Payment>, GatewayError> {
+        let rows = sqlx::query_as::<_, Payment>(
             r#"
-            SELECT id, order_id, amount_cents, bank_reference, authorized_at
+            SELECT id, order_id, customer_id, amount_cents, currency, state,
+                   bank_reference, last_four, created_at, updated_at, authorized_at
             FROM payments
             WHERE state = 'AUTHORIZED'
               AND authorized_at IS NOT NULL

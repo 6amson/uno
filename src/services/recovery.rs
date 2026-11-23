@@ -73,13 +73,13 @@ impl RecoveryWorker {
                 break;
             }
 
-            for (id, _order_id, _amount_cents, bank_ref, authorized_at) in payments {
+            for payment in payments {
                 tracing::warn!(
                     "payment {} ({}) authorized at {:?}, age exceeds {}s; voiding at bank",
-                    id, _order_id, authorized_at, STALE_SECONDS
+                    payment.id, payment.order_id, payment.authorized_at, STALE_SECONDS
                 );
 
-                match bank_ref {
+                match payment.bank_reference {
                     Some(ref bank_ref) => {
                         match self.bank.void(
                             crate::bank::client::VoidRequest {
@@ -89,18 +89,18 @@ impl RecoveryWorker {
                         ).await {
                             Ok(_) => {
                                 let _ = self.repo.update_state(
-                                    id,
+                                    payment.id,
                                     Some(PaymentState::Authorized),
                                     PaymentState::Voided,
                                     Some(bank_ref.clone()),
                                 ).await;
-                                tracing::info!("payment {} voided at bank and locally", id);
+                                tracing::info!("payment {} voided at bank and locally", payment.id);
                             }
                             Err(BankError::Permanent(_)) => {
                                 // Bank auth expired or already voided — mark VOIDED locally
-                                tracing::warn!("payment {} AUTHORIZED but bank void rejected ({}), marking VOIDED locally", id, bank_ref);
+                                tracing::warn!("payment {} AUTHORIZED but bank void rejected ({}), marking VOIDED locally", payment.id, bank_ref);
                                 let _ = self.repo.update_state(
-                                    id,
+                                    payment.id,
                                     Some(PaymentState::Authorized),
                                     PaymentState::Voided,
                                     Some(bank_ref.clone()),
@@ -108,14 +108,14 @@ impl RecoveryWorker {
                             }
                             Err(_) => {
                                 // Transient error (timeout, 5xx) → leave AUTHORIZED, retry next cycle
-                                tracing::warn!("payment {} AUTHORIZED, bank void transient error, retrying later", id);
+                                tracing::warn!("payment {} AUTHORIZED, bank void transient error, retrying later", payment.id);
                             }
                         }
                     }
                     None => {
-                        tracing::warn!("payment {} AUTHORIZED but no bank reference; marking VOIDED locally", id);
+                        tracing::warn!("payment {} AUTHORIZED but no bank reference; marking VOIDED locally", payment.id);
                         let _ = self.repo.update_state(
-                            id,
+                            payment.id,
                             Some(PaymentState::Authorized),
                             PaymentState::Voided,
                             None,

@@ -353,7 +353,7 @@ mod tests {
         // Use a private method call via a wrapper is not possible; instead test the repo method directly
         let stale = service.repo.list_stale_authorized(604_800, 100).await.unwrap();
         assert_eq!(stale.len(), 1);
-        assert_eq!(stale[0].0, payment_id);
+        assert_eq!(stale[0].id, payment_id);
 
         // Manually void via recovery logic equivalent
         let _ = service
